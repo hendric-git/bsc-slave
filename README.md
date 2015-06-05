@@ -14,7 +14,8 @@ It is compiled for the kernel version 3.18.12-v7+
 If you d'ont have this kernel version (verify with: uname -r)you need to 
 compile the module yourself. This is what the Makefile is for. 
 
-There are many possibilities. I chose installing rpi-update. You can find instructions on: https://github.com/Hexxeh/rpi-update
+There are many possibilities. I chose installing rpi-update. You can find 
+instructions on: https://github.com/Hexxeh/rpi-update
 
 Than you need to install the kernel sources. Instructions you can find on:
 https://github.com/notro/rpi-source/wiki
