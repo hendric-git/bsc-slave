@@ -1,3 +1,20 @@
+/*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 2 of the License, or
+* (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*/
+
+
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -13,15 +30,14 @@
 #include <linux/sched.h>
 
 #include "bsc-slave.h"
-
-
+ 
 #define DRIVER_AUTHOR "Hendrik <hendrik.may@gmx.net>"
 #define DRIVER_DESC   "i2c Slave controller"
-
+ 
 
 #define IRQ_DESC                "i2c-Slave-irq"
 #define DEVICE_NAME             "i2c-slave"
-#define DRV_NAME                "i2c-slave-controller"
+#define DRV_NAME                "i2c-slave-controller" 
 #define BUFFER_SIZE             PAGE_SIZE
 #define IRQ_NUMBER		43
 #define MAX_DEVICES		10
@@ -85,10 +101,8 @@
 #define BSC_IFLS_ONE_EIGHTS	0x00000000
 #define BSC_IFLS_ONE_QUART      0x00000024
 #define BSC_IFLS_ONE_HALF       0x00000012
-#define BSC_IFLS_TX2_RX4BYTE    0x00000008
 
 /* Bitfields in FR */
-#define BSC_FR_TXFE		0x00000010
 #define BSC_FR_TXFF		0x00000004
 #define BSC_FR_RXFE             0x00000002
 #define BSC_FR_TXBUSY           0x00000001
@@ -192,28 +206,21 @@ static irqreturn_t i2c_slave_irq(int irq, void *dev_id) {
                                       i2c_slave->rx_buf);
      }
 
-
    wake_up_interruptible(&i2c_slave_inq);
 
    }
 
-
+   
    if(stat_reg & BSC_MIS_TXMIS){
 
      tx_value_count = i2c_slave->tx_buf_head - i2c_slave->tx_buf_tail;
-
-     if(tx_value_count == 0){                        //no data to send
-
-          reg = readl(i2c_slave->base + BSC_IMSC);
-          reg &= ~(BSC_IMSC_TXIM);                   //disable TX interruts
-          writel(reg ,i2c_slave->base + BSC_IMSC);
-     }
-
-
      reg = readl(i2c_slave->base + BSC_FR);
+                                             //if TX buffer empty, fill TX FIFO
+                                             //with zeros to stop interrupts
+     if(tx_value_count == 0)
+        writel(0, i2c_slave->base + BSC_DR);
                                                //while space in TX FIFO
      while(( (!(reg & BSC_FR_TXFF)) && (tx_value_count != 0)) ){
-
 
           writel(*( (u8 *)i2c_slave->tx_buf_tail ), i2c_slave->base + BSC_DR);
           i2c_slave_incr_buffer_pointer(&i2c_slave->tx_buf_tail,
@@ -222,7 +229,7 @@ static irqreturn_t i2c_slave_irq(int irq, void *dev_id) {
           tx_value_count = i2c_slave->tx_buf_head - i2c_slave->tx_buf_tail;
           reg = readl(i2c_slave->base + BSC_FR);
 
-     }
+     }  
 
    wake_up_interruptible(&i2c_slave_outq);
  
@@ -245,7 +252,7 @@ static int i2c_slave_open(struct inode *inode, struct file *filp){
                                          //in read() and write()
   filp->private_data = i2c_slave;
 
-
+  
                      //allocate 2^0 (one) page(s) of memory for RX Buffer
   i2c_slave->rx_buf = __get_free_pages(GFP_KERNEL, 0);
   if(IS_ERR((void *)i2c_slave->rx_buf)){
@@ -255,7 +262,7 @@ static int i2c_slave_open(struct inode *inode, struct file *filp){
   i2c_slave->rx_buf_head = i2c_slave->rx_buf;
   i2c_slave->rx_buf_tail = i2c_slave->rx_buf;
 
-                    //allocate TX Buffer
+                   //allocate TX Buffer
   i2c_slave->tx_buf = __get_free_pages(GFP_KERNEL, 0);
   if(IS_ERR((void *)i2c_slave->tx_buf)){
      printk(KERN_NOTICE "c'ant allocate buffer memory");
@@ -265,15 +272,15 @@ static int i2c_slave_open(struct inode *inode, struct file *filp){
   i2c_slave->tx_buf_tail = i2c_slave->tx_buf;
 
                                          //select interrupt level for FIFOS
-  writel(BSC_IFLS_TX2_RX4BYTE, i2c_slave->base + BSC_IFLS);
-                                         //enable interrupts for
+  writel(BSC_IFLS_ONE_EIGHTS, i2c_slave->base + BSC_IFLS);
+                                         //enable interrupts for 
                                          //RX and TX FIFO level crossing
   reg = BSC_IMSC_RXIM | BSC_IMSC_TXIM;
   writel(reg, i2c_slave->base + BSC_IMSC);
                                          //clear errors
   writel(0, i2c_slave->base + BSC_RSR);
 
-  reg = BSC_CR_BRK;                      //clear FIFOs
+  reg = BSC_CR_BRK;                      //clear FIFOs  
   writel(reg, i2c_slave->base + BSC_CR);
 
   reg  = BSC_CR_TXE;                     //enable transmit mode FIFO
@@ -289,9 +296,9 @@ static int i2c_slave_open(struct inode *inode, struct file *filp){
 /****************************************************************************/
 int i2c_slave_release(struct inode *inode, struct file *filp){
 
-  struct bcm2708_i2c_slave_struct *i2c_slave;
+  struct bcm2708_i2c_slave_struct *i2c_slave;   
 
-  i2c_slave = filp->private_data;
+  i2c_slave = filp->private_data;               
 
   writel(0, i2c_slave->base + BSC_IMSC);    //disable interrupts
   writel(0, i2c_slave->base + BSC_CR);      //disable device
@@ -313,8 +320,8 @@ static ssize_t i2c_slave_read(struct file *filp, char __user *buf, size_t count,
   DECLARE_WAITQUEUE(wait, current);
   int count0;                                 //number of readable databytes
 
-  i2c_slave = filp->private_data;
-                                              //while RX buffer empty
+  i2c_slave = filp->private_data;      
+                                              //while RX buffer empty 
   while(i2c_slave->rx_buf_head == i2c_slave->rx_buf_tail){
     add_wait_queue(&i2c_slave_inq, &wait);
     set_current_state(TASK_INTERRUPTIBLE);
@@ -344,7 +351,6 @@ static ssize_t i2c_slave_read(struct file *filp, char __user *buf, size_t count,
                                  i2c_slave->rx_buf);
   fpos += count;
 
-
   return count;
 }
 
@@ -357,7 +363,6 @@ static ssize_t i2c_slave_write(struct file *filp, const char *buf, size_t count,
 
  struct bcm2708_i2c_slave_struct *i2c_slave;
  int count0, space = 0;
- u32 reg;
  DECLARE_WAITQUEUE(wait_tx, current);
 
  i2c_slave = filp->private_data;
@@ -379,21 +384,22 @@ static ssize_t i2c_slave_write(struct file *filp, const char *buf, size_t count,
     count0 = i2c_slave->tx_buf_head - i2c_slave->tx_buf_tail;
   }
 
+
  if(count0 > -1){
     if(i2c_slave->tx_buf_head == (i2c_slave->tx_buf + BUFFER_SIZE - 1) ){
       space = 1;
-    } else {
+    } else { 
       space = i2c_slave->tx_buf + BUFFER_SIZE - i2c_slave->tx_buf_head - 1;
     }
- }
+ } 
 
  if(count0 < -1){                               //buffer pointer wrapped
-    space = i2c_slave->tx_buf_tail - i2c_slave->tx_buf_head - 1;
+    space = i2c_slave->tx_buf_tail - i2c_slave->tx_buf_head - 1;     
  }
 
  if(count > space){
        count = space;
- }
+ }  
 
 
  if(copy_from_user((char *)i2c_slave->tx_buf_head, buf, count)){
@@ -406,9 +412,6 @@ static ssize_t i2c_slave_write(struct file *filp, const char *buf, size_t count,
                                       i2c_slave->tx_buf );
  fpos += count;
 
- reg = readl(i2c_slave->base + BSC_IMSC);        //enable TX interrupts
- reg |= BSC_IMSC_TXIM;
- writel(reg, i2c_slave->base + BSC_IMSC);
 
  return count;
 }
@@ -419,27 +422,19 @@ static ssize_t i2c_slave_write(struct file *filp, const char *buf, size_t count,
 
 static long i2c_slave_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
-        struct bcm2708_i2c_slave_struct *i2c_slave = filp->private_data;
-        u32 reg;
+        struct bcm2708_i2c_slave_struct *i2c_slave = filp->private_data;       
+
 
         switch (cmd) {
         case I2C_SLAVE:
         case I2C_SLAVE_FORCE:
-
+               
                 if ((arg > 0x7f))
                         return -EINVAL;
 
                 writel(arg, i2c_slave->base + BSC_SLV);
                 return 0;
-
-        case I2C_CLEAR_FIFOS:        /*this seems not to work*/
-
-                reg = readl(i2c_slave->base + BSC_CR);
-                reg |= BSC_CR_BRK;
-                writel(reg, i2c_slave->base + BSC_CR);
-
-                return 0;
-
+      
         default:
                 /* NOTE:  returning a fault code here could cause trouble
                  * in buggy userspace code.  Some old kernel bugs returned
@@ -472,7 +467,7 @@ static struct file_operations i2c_slave_fops = {
 int __init bcm2708_i2c_slave_init(void){
 
   int ret = -ENODEV;
-  dev_t dev_number;
+  dev_t dev_number;      
   struct bcm2708_i2c_slave_struct *i2c_slave;
 
  
@@ -504,14 +499,14 @@ int __init bcm2708_i2c_slave_init(void){
      goto mem_reg_fail;
   }
 
-  i2c_slave->dev_number = MKDEV(major, 0);
-  cdev_init(&i2c_slave->cdev, &i2c_slave_fops);
+  i2c_slave->dev_number = MKDEV(major, 0);          
+  cdev_init(&i2c_slave->cdev, &i2c_slave_fops);      
   ret = cdev_add(&i2c_slave->cdev, i2c_slave->dev_number,1);
   if(ret){
      goto cdev_init_fail;
   }
 
-  i2c_slave_device = device_create(i2c_slave_class, NULL,
+  i2c_slave_device = device_create(i2c_slave_class, NULL,  
                                    i2c_slave->dev_number,
                                    i2c_slave, DEVICE_NAME);
 
@@ -547,7 +542,7 @@ int __init bcm2708_i2c_slave_init(void){
   return 0;
 
   remap_fail:
-     free_irq(IRQ_NUMBER, i2c_slave_dev);
+     free_irq(IRQ_NUMBER, i2c_slave_dev);  
 
   irq_fail:
      device_destroy(i2c_slave_class, MKDEV(major,0));
@@ -589,10 +584,10 @@ void __exit bcm2708_i2c_slave_cleanup(void){
 
   bcm2708_init_i2c_pinmode(0);
 
-  free_irq(IRQ_NUMBER, i2c_slave_dev);
-  iounmap(i2c_slave_dev->base);
-  kfree(i2c_slave_dev);
-
+  free_irq(IRQ_NUMBER, i2c_slave_dev);   
+  iounmap(i2c_slave_dev->base); 
+  kfree(i2c_slave_dev);              
+ 
 }
 
 
