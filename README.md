@@ -30,3 +30,5 @@ the moment only one process can access the bus.
 
 The controller also supports SPI Slave mode. I had no chance to make that 
 running. If you do I would be very happy if you could complete the module. 
+
+SDA is on GPIO18 (PIN HEADER 12) while SCL is on GPIO19 (PIN HEADER 35)
